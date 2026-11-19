@@ -780,6 +780,7 @@ async function render(){
   const p = path();
   const g0 = p.split("/")[0];
   const v = (g0==="t"||g0==="p") && locked(g0) ? ()=>vGate(g0) : (ROUTES[p] || vHome);
+  if(p==="team"){ const qt=new URLSearchParams(location.hash.split("?")[1]||"").get("tab"); if(qt) teamTab=qt; }
   if(p==="team" && STORE.isAdmin() && RESP===null && (teamTab==="extra"||teamTab==="after")) loadResp();
   app.classList.remove("in");
   app.innerHTML = v();
