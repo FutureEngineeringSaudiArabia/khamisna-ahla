@@ -186,6 +186,7 @@ function vStudents(){
     ${codeGate()}
     <div class="stepbox ${has?"":"dim"}"><span class="sn">${has?"٢":"٢"}</span><div class="sb"><h3>المطلوب منكِ في كل خميس</h3>
       <ol class="req"><li><b>قبل الفعالية:</b> الاختبار القبلي.</li><li><b>سجّلي دورك</b> في الفعالية.</li><li><b>بعد الفعالية:</b> الاختبار البعدي، وماذا تعلّمتِ، وقياس الرضا.</li></ol></div></div>
+    ${has && (S.general.termPre||S.general.termPost) ? `<div class="stepbox"><span class="sn">📋</span><div class="sb"><h3>استبانة المبادرة <small>· Microsoft Forms</small></h3><p class="small">مرة في بداية الفصل ومرة في نهايته، عن حماسك للخميس وانتمائك للمدرسة.</p><div class="acts">${S.general.termPre?linkBtn(S.general.termPre,"الاستبانة القبلية"):""}${S.general.termPost?linkBtn(S.general.termPost,"الاستبانة البعدية"):""}</div></div></div>` : ""}
     <h2 class="sec">خميسات المبادرة</h2>
     ${has?"":`<p class="pending big">⬆️ سجّلي بياناتك أولًا لتفتح الخميسات.</p>`}
     <div class="evlist">${evs.map(e=>{const t=track(e.track); const n=["pre","role","post"].filter(k=>isDone(k,e.id)).length;
@@ -708,6 +709,11 @@ function tExtra(){
       <label>خط الأساس (قبل)<input name="${id}_baseline" value="${esc(m.baseline||"")}"></label>
       <label>القيمة المحققة<input name="${id}_value" value="${esc(m.value||"")}"></label></div></fieldset>`}).join("")}
     <button class="btn">حفظ المؤشرات</button></form></details>`;
+  html += `<details class="box"><summary><b>📋 استبانة المبادرة (Microsoft Forms)</b> ${hint("القبلية والبعدية للفصل — تظهر للطالبات في صفحتهن")}</summary>
+    <form data-form="forms">${hint("انسخي رابط النموذج من Forms: زر «جمع الردود» ثم «نسخ الرابط». اتركي البعدية فارغة إلى نهاية الفصل.")}
+    <label>رابط الاستبانة القبلية<input name="termPre" type="url" dir="ltr" value="${esc(S.general.termPre||"")}" placeholder="https://forms.office.com/..."></label>
+    <label>رابط الاستبانة البعدية<input name="termPost" type="url" dir="ltr" value="${esc(S.general.termPost||"")}" placeholder="https://forms.office.com/..."></label>
+    <button class="btn">حفظ</button></form></details>`;
   html += `<details class="box"><summary><b>📣 لوحة الطالبات: فكرة الشهر وموهبة الخميس</b> ${hint("تظهر للطالبات في «إنجازاتي وشاراتي ونقاط فصلي»")}</summary>
     <form data-form="hilite">${hint("اكتبي دون أسماء كاملة، مثل: «خميس الألعاب الذهنية — فكرة طالبة من ٢م».")}
     <label>فكرة الشهر<input name="idea" value="${esc((S.highlights||{}).idea||"")}" maxlength="120"></label>
@@ -927,6 +933,7 @@ document.addEventListener("submit", async ev=>{
     else if(kind==="badges"){ const code=readCode(f); if(!code) throw new Error("أكملي رمزك"); const b=S.badges[code]||[]; const box=document.querySelector("[data-badges]");
       box.innerHTML = b.length? `<div class="mybadges">${b.map(k=>{const x=BADGES.find(y=>y.k===k)||{e:"🏅"};return `<div class="mb"><span>${x.e}</span><b>${k}</b></div>`}).join("")}</div>` : `<p class="pending">لا شارات بعد لهذا الرمز — شاركي في الخميس القادم لتحصلي على أولى شاراتك ✨</p>`; if(b.length) confetti(); }
     else if(kind==="login"){ const ok=await STORE.login(fd.get("pin")); if(!ok) throw new Error("الرقم السري غير صحيح"); teamTab="events"; render(); }
+    else if(kind==="forms"){ S.general=S.general||{}; S.general.termPre=(fd.get("termPre")||"").trim(); S.general.termPost=(fd.get("termPost")||"").trim(); await persist("حُفظت روابط الاستبانة"); }
     else if(kind==="hilite"){ S.highlights={idea:(fd.get("idea")||"").trim(),talent:(fd.get("talent")||"").trim()}; await persist("حُفظت لوحة الطالبات"); }
     else if(kind==="access"){ S.access=S.access||{}; S.accessVer=S.accessVer||{}; let n=0; for(const g of ["t","p"]){ const v=(fd.get(g)||"").trim(); if(v){ if(v.length<4) throw new Error("الرمز ٤ أرقام على الأقل"); const r=await STORE.setAccess(g,v); S.access[g]= r==="server" ? "" : r; S.accessVer[g]=(S.accessVer[g]||0)+1; KV.set("kh2_unlock_"+g,accessVer(g)); n++; } } if(!n) throw new Error("اكتبي رمزًا جديدًا"); await persist("حُفظت الرموز"); }
     else if(kind==="pin"){ await STORE.changePin(fd.get("pin")); toast("تغيّر الرقم السري"); f.reset(); }
