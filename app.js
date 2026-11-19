@@ -685,6 +685,7 @@ function tAfter(){
     <label>ماذا حدث؟ (ملخص قصير)<textarea name="summary" rows="3">${esc(e.summary||"")}</textarea>${hint("ثلاثة أسطر: ماذا نُفّذ، وما الذي لفت انتباهكن. يظهر للجميع.")}</label>
     <label>إجراء التحسين للخميس القادم<textarea name="improvement" rows="2">${esc(r.improvement||"")}</textarea>${hint("إجراء واحد واضح، مثل: زيادة وقت الأركان ١٠ دقائق.")}</label>
     <button class="btn">حفظ</button></form>`}).join("")
+  + `<div class="box hl"><h4>📊 تقرير Excel الشامل</h4>${hint("ملف Excel فيه ست أوراق: نتائج الخميسات، والمؤشرات الخمسة عشر، والإجابات الكتابية، وبطاقات المعلمات، ونقاط الفصول، وكل الردود. احفظيه في OneDrive أو Teams، وافتحيه مع Copilot للتحليل.")}<button class="btn hot" data-act="exp-xlsx">⬇️ تنزيل تقرير Excel</button></div>`
   + `<div class="box hl"><h4>📤 احسبي وانشري النتائج</h4>${hint("يحسب من ردود الطالبات والمعلمات وأولياء الأمور: الاختبارات والرضا والمهارات والقيم، وينشرها مجمّعة في «بصمة الأثر» دون أسماء. اضغطيه بعد كل خميس، ويمكن تكراره.")}<button class="btn hot" data-act="publish">احسبي وانشري النتائج</button></div>`;
 }
 function tExtra(){
@@ -731,6 +732,63 @@ function respBlock(){
     <h4>💡 أفكار الطالبات</h4>${ideas.map(r=>`<p>• ${esc(r.payload.idea)} <small>(${esc(r.payload.code)})</small></p>`).join("")||'<p class="small">لا توجد أفكار بعد.</p>'}`;
 }
 
+
+/* ================= تقرير Excel ================= */
+function loadXLSX(){ return window.XLSX ? Promise.resolve() : new Promise((ok,bad)=>{ const sc=document.createElement("script"); sc.src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"; sc.onload=ok; sc.onerror=()=>bad(new Error("تعذّر تحميل أداة Excel، تأكدي من الاتصال")); document.head.appendChild(sc); }); }
+async function exportXlsx(){
+  await loadXLSX();
+  const resp = await STORE.responses();
+  const A = analyze(resp), O = overall(A);
+  const r1 = v => v==null ? "بانتظار البيانات" : Math.round(v*10)/10;
+  const evName = id => (evById(id)||{}).title||id;
+  // ١. نتائج الخميسات
+  const evRows = S.events.filter(e=>e.status!=="مسودة").map(e=>{ const a=A[e.id], r=S.records[e.id]||{}; return {
+    "الفعالية":e.title, "التاريخ":e.date, "المرحلة":e.stage, "الحالة":e.status,
+    "عدد الحاضرات":r.attendance||"", "عدد المشاركات":r.participants||"", "الأدوار القيادية":r.leaders||"", "المواهب":r.talents||"", "مصدر الأرقام":r.source||"",
+    "ردود القبلي":a.nPre, "ردود البعدي":a.nPost, "المتطابقة":a.nMatched,
+    "متوسط القبلي ٪":r1(a.preMean), "متوسط البعدي ٪":r1(a.postMean), "مكسب التعلّم g":a.g==null?"بانتظار البيانات":Math.round(a.g*100)/100,
+    "مستوى التعلّم التأمّلي ٪":r1(a.expressed), "مؤشرات المهارات (واضح) ٪":r1(a.skills), "مؤشرات القيم (واضح) ٪":r1(a.values),
+    "ملاحظة أثر لدى الأسرة ٪":r1(a.parentPos),
+    "رضا الطالبات ٪":r1(a.satS.pos), "رضا المعلمات ٪":r1(a.satT.pos), "رضا أولياء الأمور ٪":r1(a.satP.pos),
+    "بطاقات المعلمات":a.teacherN, "ردود أولياء الأمور":a.parentN,
+    "ماذا حدث":e.summary||"", "إجراء التحسين":r.improvement||"" }; });
+  // ٢. المؤشرات
+  const recs=Object.values(S.records), sum=k=>recs.reduce((x,r)=>x+(+r[k]||0),0);
+  const auto={gain:O.gain&&Math.round(O.gain.v*100)/100, expressed:O.expressed&&r1(O.expressed.v), skills:O.skills&&r1(O.skills.v), values:O.values&&r1(O.values.v), parents:O.parents&&r1(O.parents.v), skillvar:O.skillvar&&O.skillvar.v, talents:sum("talents")||(O.talents&&O.talents.v)||null,
+    leaders: sum("participants")&&sum("leaders") ? r1(sum("leaders")/sum("participants")*100) : null,
+    ideas: S.events.filter(e=>e.track==="ours"&&e.status==="منفّذة").length||null,
+    satis: [O.satS,O.satT,O.satP].some(Boolean) ? ["الطالبات","المعلمات","أولياء الأمور"].map((k,i)=>{const x=[O.satS,O.satT,O.satP][i]; return k+": "+(x?r1(x.v)+"٪":"—");}).join(" · ") : null };
+  const months={}; S.events.filter(e=>e.status==="منفّذة").forEach(e=>{const k=e.iso.slice(0,7);(months[k]=months[k]||new Set()).add(e.track);});
+  if(Object.keys(months).length) auto.diversity=Object.entries(months).map(([k,v])=>k+": "+v.size+" نوع").join(" · ");
+  const indRows = INDICATORS.map(i=>{ const m=S.impact[i.id]||{}; const v = m.value || (auto[i.id]!=null&&auto[i.id]!==false ? auto[i.id] : null); return {
+    "المجال":i.dom, "المؤشر":i.n, "المستهدف":i.tgt, "طريقة الحساب":i.how, "المصدر":i.src,
+    "خط الأساس":m.baseline||"", "القيمة المحققة": v==null||v===""?"بانتظار البيانات":v }; });
+  // ٣. الإجابات الكتابية
+  const cls=S.classify||{};
+  const wRows = resp.filter(r=>r.kind==="post").flatMap(r=>[["deep","كنتُ أظن… والآن…"],["spec","معلومة أو مهارة"]].filter(([k])=>r.payload[k]).map(([k,t])=>({
+    "الفعالية":evName(r.event_id), "رمز الطالبة":r.payload.code, "نوع السؤال":t, "الإجابة":r.payload[k], "التصنيف (عميق/محدد/عام)":cls[r.ts+"|"+k]||"", "اقتراح التحسين":r.payload.improve||"" })));
+  // ٤. بطاقات المعلمات
+  const tRows = resp.filter(r=>r.kind==="teacher").map(r=>{ const Q=QUESTIONS[r.event_id]||{teacherInd:[]}; const o={"الفعالية":evName(r.event_id),"الفصل":r.payload.cls||""};
+    Q.teacherInd.forEach((ind,i)=>o[ind]={"واضح":"ظهر بوضوح","جزئي":"ظهر جزئيًا","لم":"لم يظهر"}[r.payload["ind"+i]]||"");
+    o["مثال"]=r.payload.example||""; o["مواهب ظهرت"]=(r.payload.talents||[]).join("، "); o["عدد المواهب"]=r.payload.talentCount||""; o["الرضا (١-٥)"]=r.payload.sat||""; o["إجراء التحسين"]=r.payload.improve||""; return o; });
+  // ٥. النقاط
+  const bRows = Object.entries(S.board).sort((a,b)=>b[1]-a[1]).map(([c,p],i)=>({"الترتيب":i+1,"الفصل":c,"النقاط":p}));
+  // ٦. كل الردود
+  const kindAr={pre:"اختبار قبلي",post:"اختبار بعدي",role:"دور",idea:"فكرة",teacher:"بطاقة معلمة",parent:"ولي أمر"};
+  const aRows = resp.map(x=>{const p=x.payload; const sc=(x.kind==="pre"||x.kind==="post")?(p.score!=null?p.score:score(x.kind,x.event_id,p)):""; return {
+    "التاريخ":x.ts?new Date(x.ts).toLocaleString("ar-SA"):"", "الفعالية":evName(x.event_id), "النوع":kindAr[x.kind]||x.kind, "الرمز":p.code||"", "الفصل":p.cls||(p.code?String(p.code).split("-")[0]:""),
+    "الدرجة ٪":sc===""||sc==null?"":Math.round(sc), "الرضا (١-٥)":p.sat||"", "الدور":p.role||"", "الفكرة":p.idea||"", "ملاحظة ولي الأمر":(p.obs||[]).join("، "), "دعم الأسرة":p.support||"", "تعليق":p.note||p.example||"" }; });
+  const wb = XLSX.utils.book_new(); wb.Workbook={Views:[{RTL:true}]};
+  const add=(rows,name,empty)=>{ const ws = XLSX.utils.json_to_sheet(rows.length?rows:[{"ملاحظة":empty}]); const keys=Object.keys((rows[0]||{"ملاحظة":empty})); ws["!cols"]=keys.map(k=>({wch:Math.min(45,Math.max(10,k.length+2,...rows.slice(0,50).map(r=>String(r[k]??"").length)))})); XLSX.utils.book_append_sheet(wb, ws, name); };
+  add(evRows,"نتائج الخميسات","لا توجد فعاليات");
+  add(indRows,"المؤشرات","—");
+  add(wRows,"الإجابات الكتابية","لا توجد إجابات بعد");
+  add(tRows,"بطاقات المعلمات","لا توجد بطاقات بعد");
+  add(bRows,"نقاط الفصول","لم تُرصد نقاط بعد");
+  add(aRows,"كل الردود","لا توجد ردود بعد");
+  XLSX.writeFile(wb, "تقرير خميسنا أحلى "+new Date().toISOString().slice(0,10)+".xlsx");
+  toast("نُزّل تقرير Excel ✦");
+}
 /* ================= دليل الاستخدام ================= */
 const HELP = [
   ["من أين أبدأ؟","اضغطي مربع «الطالبات»، سجّلي بياناتك مرة واحدة، ثم ادخلي الخميس واتبعي خطواته بالترتيب من الأعلى للأسفل."],
@@ -822,6 +880,7 @@ document.addEventListener("click", async ev=>{
   else if(act==="publish"){ const resp=await STORE.responses(); const A=analyze(resp); S.published={at:new Date().toISOString(), events:A, overall:overall(A)};
     Object.values(S.published.events).forEach(x=>delete x.improve); await persist("نُشرت النتائج المجمّعة"); }
   else if(act==="csv-template"){ ev.preventDefault(); download("khamisna-template.csv","event_id,kind,code,score\nculture-1448,pre,٢م-٠٥-فا,60\nculture-1448,post,٢م-٠٥-فا,80\n"); }
+  else if(act==="exp-xlsx"){ try{ el.disabled=true; await exportXlsx(); }catch(e){ toast(e.message,false); } finally{ el.disabled=false; } }
   else if(act==="exp-csv"){ const r=await STORE.responses(); const rows=[["event_id","kind","ts","code","class","score","sat","deep","spec","improve","role","idea","obs","support"]];
     r.forEach(x=>{const p=x.payload; const sc=p.score!=null?p.score:(x.kind==="pre"||x.kind==="post"?score(x.kind,x.event_id,p):""); rows.push([x.event_id,x.kind,x.ts,p.code||"",p.cls||"",sc==null?"":sc,p.sat||"",p.deep||"",p.spec||"",p.improve||"",p.role||"",p.idea||"",(p.obs||[]).join("؛"),p.support||""]);});
     download("khamisna-responses.csv","﻿"+rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(",")).join("\n")); }
