@@ -6,8 +6,8 @@ del:k=>{delete mem[k];try{ls&&ls.removeItem(k);}catch(e){}}};})();
 /* ============ إعدادات الموقع — يعدّلها الفريق ============ */
 window.CONFIG = {
   // عند ربط قاعدة البيانات المشتركة (Supabase) تُكتب القيمتان هنا. فارغتان = وضع المعاينة (حفظ على هذا الجهاز فقط)
-  supabaseUrl: "",
-  supabaseAnonKey: "",
+  supabaseUrl: "https://vxuqglzgmctxoqhgspxr.supabase.co",
+  supabaseAnonKey: "sb_publishable_MypBsvKHZ8DCxJs85RaF7w_7ECOEUfH",
   school: "متوسطة وثانوية التحلية بينبع",
   term: "الفصل الدراسي الأول ١٤٤٨هـ",
   classes: {

@@ -30,6 +30,12 @@ alter table public_state enable row level security;
 alter table responses enable row level security;
 alter table secrets enable row level security;
 
+grant usage on schema public to anon;
+grant select on public_state to anon;
+grant insert on responses to anon;
+grant usage on sequence responses_id_seq to anon;
+revoke all on secrets from anon, authenticated;
+
 drop policy if exists "read public state" on public_state;
 create policy "read public state" on public_state for select to anon using (true);
 drop policy if exists "send responses" on responses;

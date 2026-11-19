@@ -43,7 +43,7 @@
   async function sb(path, opt={}){
     const r = await fetch(C.supabaseUrl.replace(/\/$/,"")+"/rest/v1/"+path, {
       method: opt.method||"GET",
-      headers: {"apikey":C.supabaseAnonKey,"Authorization":"Bearer "+C.supabaseAnonKey,"Content-Type":"application/json","Prefer":"return=minimal"},
+      headers: Object.assign({"apikey":C.supabaseAnonKey,"Content-Type":"application/json","Prefer":"return=minimal"}, C.supabaseAnonKey.startsWith("eyJ")?{"Authorization":"Bearer "+C.supabaseAnonKey}:{}),
       body: opt.body?JSON.stringify(opt.body):undefined
     });
     if(!r.ok) throw new Error("تعذّر الاتصال بالخادم ("+r.status+")");
